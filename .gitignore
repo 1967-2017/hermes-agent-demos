@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+demo1_ops/data/notifications.jsonl
+demo1_ops/data/verification_report.md
+demo1_ops/data/traces/*.json
