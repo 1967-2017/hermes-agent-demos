@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -79,14 +80,22 @@ def create_chat_completion(config: DemoConfig, messages: list[dict]) -> tuple[st
             "Authorization": f"Bearer {config.api_key}",
         },
     )
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            raw = response.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Chat completion failed: HTTP {exc.code} {body}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Chat completion failed: {exc}") from exc
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                raw = response.read().decode("utf-8")
+            break
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Chat completion failed: HTTP {exc.code} {body}") from exc
+        except urllib.error.URLError as exc:
+            last_error = exc
+            if attempt == 2:
+                raise RuntimeError(f"Chat completion failed: {exc}") from exc
+            time.sleep(1 + attempt)
+    else:
+        raise RuntimeError(f"Chat completion failed: {last_error}")
 
     parsed = json.loads(raw)
     choice = parsed["choices"][0]

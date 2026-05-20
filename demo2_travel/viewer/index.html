@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo2 完整思考轨迹</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sessions-panel">
+        <div class="panel-header">
+          <div>
+            <h1>规划会话</h1>
+            <p>trace.md 展示当前完整轨迹</p>
+          </div>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新">刷新</button>
+        </div>
+        <div id="sessionStatus" class="session-status">正在加载...</div>
+        <div id="sessionsList" class="sessions-list"></div>
+      </aside>
+
+      <main class="trace-panel">
+        <header class="trace-header">
+          <div>
+            <p class="eyebrow">完整思考轨迹</p>
+            <h2 id="traceTitle">trace.md</h2>
+            <p id="traceSubtitle" class="trace-subtitle">按后端生成的 Markdown 原始顺序展示：plan -> action -> observation -> replan。</p>
+          </div>
+          <div id="statusBadge" class="status-badge neutral">Markdown</div>
+        </header>
+
+        <section class="stats-grid" aria-label="轨迹统计">
+          <div class="stat-card"><span>Plan</span><strong id="statPlans">-</strong></div>
+          <div class="stat-card"><span>Action</span><strong id="statActions">-</strong></div>
+          <div class="stat-card"><span>Observation</span><strong id="statObservations">-</strong></div>
+          <div class="stat-card"><span>用户交互</span><strong id="statUserEvents">-</strong></div>
+          <div class="stat-card"><span>最终答案</span><strong id="statFinals">-</strong></div>
+          <div class="stat-card"><span>总段落</span><strong id="statSections">-</strong></div>
+        </section>
+
+        <section class="flow-panel" aria-label="trace markdown">
+          <div class="section-title">
+            <h3>trace.md</h3>
+            <p id="markdownMeta">实时读取 demo2_travel/trace.md</p>
+          </div>
+          <article id="markdownView" class="markdown-view"></article>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
