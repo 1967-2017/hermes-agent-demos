@@ -9,3 +9,6 @@ demo2_travel/data/tool_events.jsonl
 demo2_travel/data/verification_report.md
 demo2_travel/data/traces/*.json
 demo2_travel/trace.md
+demo3_rag/data/index/
+demo3_rag/data/traces/*.json
+demo3_rag/data/verification_report.md

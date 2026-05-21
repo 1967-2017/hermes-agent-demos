@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo3 RAG 展示台</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-panel">
+        <div class="panel-header">
+          <div>
+            <h1>RAG 会话</h1>
+            <p>实时问答与历史 trace</p>
+          </div>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新">刷新</button>
+        </div>
+
+        <section class="side-section">
+          <h2>内置场景</h2>
+          <div id="scenarioList" class="list-stack"></div>
+        </section>
+
+        <section class="side-section">
+          <h2>历史 trace</h2>
+          <div id="sessionStatus" class="muted">正在加载...</div>
+          <div id="traceList" class="list-stack"></div>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <header class="trace-header">
+          <div>
+            <p class="eyebrow">Hermes Native RAG</p>
+            <h2 id="traceTitle">Demo3 文档问答</h2>
+            <p id="traceSubtitle" class="muted">自由输入会执行 `python -m demo3_rag.main --input "..."`，并展示 `demo3-manual.json`。</p>
+          </div>
+          <div id="statusBadge" class="status-badge neutral">就绪</div>
+        </header>
+
+        <section class="ask-panel">
+          <form id="askForm" class="ask-form">
+            <textarea id="questionInput" rows="3" placeholder="输入一个关于菜谱文档的问题，结果会写入 demo3-manual.json"></textarea>
+            <div class="form-actions">
+              <select id="scenarioSelect" title="选择内置场景">
+                <option value="">自由输入</option>
+              </select>
+              <button id="runButton" class="primary-button" type="submit">运行</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="stats-grid" aria-label="运行统计">
+          <div class="stat-card"><span>Evidence</span><strong id="statEvidence">-</strong></div>
+          <div class="stat-card"><span>Chunks</span><strong id="statChunks">-</strong></div>
+          <div class="stat-card"><span>Docs</span><strong id="statDocs">-</strong></div>
+          <div class="stat-card"><span>Tool Calls</span><strong id="statTools">0</strong></div>
+          <div class="stat-card"><span>Parse Errors</span><strong id="statErrors">0</strong></div>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel">
+            <div class="section-title">
+              <h3>最终回答</h3>
+              <p id="answerMeta" class="muted">等待运行</p>
+            </div>
+            <div id="answerView" class="answer-view empty-state">暂无回答</div>
+          </article>
+
+          <article class="panel">
+            <div class="section-title">
+              <h3>实时事件</h3>
+              <p id="eventMeta" class="muted">SSE 阶段流</p>
+            </div>
+            <div id="eventStream" class="timeline"></div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h3>检索证据</h3>
+            <p id="chunkMeta" class="muted">按 rerank score 展示</p>
+          </div>
+          <div id="chunkList" class="chunk-list empty-state">暂无证据</div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h3>命中文档原文</h3>
+            <p id="docMeta" class="muted">按 rerank 后 doc_id 去重</p>
+          </div>
+          <div id="docList" class="document-list empty-state">暂无文档</div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h3>原始 Trace</h3>
+            <p id="rawMeta" class="muted">选择历史 trace 或完成一次运行后展示</p>
+          </div>
+          <pre id="rawTrace" class="raw-trace">{}</pre>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
