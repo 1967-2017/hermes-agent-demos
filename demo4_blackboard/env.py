@@ -30,6 +30,7 @@ def get_mcp_command() -> list[str]:
     command = os.getenv("DEMO4_MCP_COMMAND", "uvx").strip()
     args = os.getenv("DEMO4_MCP_ARGS", "arxiv-mcp-server").strip()
     storage_path = os.getenv("DEMO4_ARXIV_STORAGE_PATH", "").strip()
+    user_agent = os.getenv("DEMO4_ARXIV_USER_AGENT", "").strip()
     uv_cache_dir = os.getenv("DEMO4_UV_CACHE_DIR", "").strip() or str(DATA_DIR / "uv-cache")
     uv_tool_dir = os.getenv("DEMO4_UV_TOOL_DIR", "").strip() or str(DATA_DIR / "uv-tools")
     ensure_dir(Path(uv_cache_dir))
@@ -42,6 +43,8 @@ def get_mcp_command() -> list[str]:
     if storage_path:
         ensure_dir(Path(storage_path))
         os.environ["ARXIV_STORAGE_PATH"] = storage_path
+    if user_agent:
+        os.environ.setdefault("ARXIV_USER_AGENT", user_agent)
     return argv
 
 

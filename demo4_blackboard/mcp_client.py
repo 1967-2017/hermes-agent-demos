@@ -137,7 +137,9 @@ class StdioMcpClient:
         if process is None or process.stderr is None:
             return
         for line in process.stderr:
-            self._stderr_lines.append(line.rstrip())
+            if isinstance(line, bytes):
+                line = line.decode("utf-8", errors="replace")
+            self._stderr_lines.append(str(line).rstrip())
 
     def _drain_stdout(self) -> None:
         while True:
