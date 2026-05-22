@@ -16,6 +16,7 @@
       --green: #16803c;
       --red: #c7362f;
       --gray: #758195;
+      --amber: #a16207;
       --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
     }
 
@@ -25,11 +26,11 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font: 15px/1.55 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     }
 
     main {
-      width: min(1160px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 48px;
     }
@@ -42,7 +43,7 @@
       margin-bottom: 24px;
     }
 
-    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3, p, pre { margin: 0; }
 
     h1 { font-size: 28px; letter-spacing: -0.03em; }
 
@@ -124,11 +125,16 @@
       color: #263248;
     }
 
-    .layout {
+    .workspace {
       display: grid;
-      grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.35fr);
+      grid-template-columns: minmax(360px, 1.05fr) minmax(360px, 1fr);
       gap: 20px;
       align-items: start;
+    }
+
+    .stack {
+      display: grid;
+      gap: 20px;
     }
 
     .panel { overflow: hidden; }
@@ -146,19 +152,19 @@
 
     .count { color: var(--muted); font-size: 13px; }
 
-    .timeline {
+    .timeline, .collaboration-list {
       max-height: 620px;
       overflow: auto;
       padding: 8px 18px 18px;
     }
 
-    .event {
+    .event, .message {
       position: relative;
       padding: 14px 0 14px 22px;
       border-left: 2px solid var(--line);
     }
 
-    .event::before {
+    .event::before, .message::before {
       content: "";
       position: absolute;
       left: -6px;
@@ -170,8 +176,11 @@
     }
 
     .event.result::before { background: var(--green); }
+    .message.feedback::before { background: var(--amber); }
+    .message.final::before { background: var(--green); }
+    .message.error::before { background: var(--red); }
 
-    .event-title {
+    .event-title, .message-title {
       display: flex;
       justify-content: space-between;
       gap: 12px;
@@ -179,7 +188,7 @@
       font-weight: 700;
     }
 
-    .event-meta {
+    .event-meta, .message-meta {
       color: var(--muted);
       font-size: 12px;
       margin-bottom: 6px;
@@ -187,12 +196,23 @@
 
     .event-summary { color: #2e3b52; }
 
+    .message-summary {
+      color: #2e3b52;
+      margin-bottom: 6px;
+    }
+
+    .message-detail {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #1f2937;
+      font-size: 14px;
+    }
+
     .result-body {
       padding: 18px;
     }
 
     .review {
-      margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
       font: inherit;
@@ -210,11 +230,11 @@
       margin-top: 8px;
     }
 
-    @media (max-width: 860px) {
-      header, .layout { display: block; }
+    @media (max-width: 920px) {
+      header { display: block; }
+      .workspace { grid-template-columns: 1fr; }
       .grid { grid-template-columns: 1fr; }
       .pill { margin-top: 16px; }
-      .panel { margin-top: 20px; }
     }
   </style>
 </head>
@@ -223,7 +243,7 @@
     <header>
       <div>
         <h1>Demo 4 Blackboard Live Viewer</h1>
-        <p class="subhead" id="topic">正在读取黑板状态...</p>
+        <p class="subhead" id="topic">正在读取 blackboard 状态...</p>
         <p class="error" id="error" hidden></p>
       </div>
       <div class="pill"><span class="dot"></span><span id="session">session: -</span></div>
@@ -231,23 +251,33 @@
 
     <section class="grid" id="agents"></section>
 
-    <section class="layout">
+    <section class="workspace">
       <section class="panel">
         <div class="panel-header">
-          <h2>工具调用时间线</h2>
-          <span class="count" id="timeline-count">0 events</span>
+          <h2>协作过程</h2>
+          <span class="count" id="collaboration-count">0 messages</span>
         </div>
-        <div class="timeline" id="timeline"></div>
+        <div class="collaboration-list" id="collaboration"></div>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <h2>最终结果</h2>
-          <span class="count" id="result-status">等待生成</span>
-        </div>
-        <div class="result-body">
-          <pre class="review" id="final-result">最终 review 会在 writer 完成后显示在这里。</pre>
-        </div>
+      <section class="stack">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>工具调用时间线</h2>
+            <span class="count" id="timeline-count">0 events</span>
+          </div>
+          <div class="timeline" id="timeline"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>最终结果</h2>
+            <span class="count" id="result-status">等待生成</span>
+          </div>
+          <div class="result-body">
+            <pre class="review" id="final-result">最终 review 会在 writer 完成后显示在这里。</pre>
+          </div>
+        </section>
       </section>
     </section>
   </main>
@@ -256,11 +286,13 @@
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('session_id') || '';
     const agentsEl = document.getElementById('agents');
+    const collaborationEl = document.getElementById('collaboration');
     const timelineEl = document.getElementById('timeline');
     const topicEl = document.getElementById('topic');
     const errorEl = document.getElementById('error');
     const sessionEl = document.getElementById('session');
-    const countEl = document.getElementById('timeline-count');
+    const collaborationCountEl = document.getElementById('collaboration-count');
+    const timelineCountEl = document.getElementById('timeline-count');
     const finalEl = document.getElementById('final-result');
     const resultStatusEl = document.getElementById('result-status');
 
@@ -296,8 +328,34 @@
       `).join('');
     }
 
+    function messageClass(kind) {
+      if (kind === 'review_feedback') return 'feedback';
+      if (kind === 'final_review') return 'final';
+      if (kind === 'runtime_error') return 'error';
+      return 'default';
+    }
+
+    function renderCollaboration(items) {
+      collaborationCountEl.textContent = `${items.length} messages`;
+      if (!items.length) {
+        collaborationEl.innerHTML = '<div class="empty">暂无协作消息。旧 blackboard 也会在这里显示 task、notes、feedback 和 final review。</div>';
+        return;
+      }
+      collaborationEl.innerHTML = items.map(item => `
+        <div class="message ${escapeHtml(messageClass(item.kind))}">
+          <div class="message-title">
+            <span>${escapeHtml(item.from || 'unknown')} → ${escapeHtml(item.to || 'unknown')}</span>
+            <span>${escapeHtml(formatTime(item.ts))}</span>
+          </div>
+          <div class="message-meta">${escapeHtml(item.kind)} · round ${escapeHtml(item.round ?? 0)}</div>
+          <div class="message-summary">${escapeHtml(item.summary || '')}</div>
+          <div class="message-detail">${escapeHtml(item.detail || '')}</div>
+        </div>
+      `).join('');
+    }
+
     function renderTimeline(items) {
-      countEl.textContent = `${items.length} events`;
+      timelineCountEl.textContent = `${items.length} events`;
       if (!items.length) {
         timelineEl.innerHTML = '<div class="empty">暂无工具调用事件。</div>';
         return;
@@ -329,10 +387,11 @@
       const response = await fetch(`/api/state${query}`, { cache: 'no-store' });
       const state = await response.json();
       sessionEl.textContent = `session: ${state.session_id || '-'}`;
-      topicEl.textContent = state.topic ? `Topic: ${state.topic}` : '正在读取黑板状态...';
+      topicEl.textContent = state.topic ? `Topic: ${state.topic}` : '正在读取 blackboard 状态...';
       errorEl.hidden = !state.error;
       errorEl.textContent = state.error || '';
       renderAgents(state.agents || []);
+      renderCollaboration(state.collaboration || []);
       renderTimeline(state.timeline || []);
       renderFinal(state.final_result || {});
     }

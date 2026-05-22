@@ -32,7 +32,11 @@ def main(argv: list[str] | None = None) -> int:
         session_id = args.session_id
     else:
         raise SystemExit("Use --topic or --scenario.")
-    summary = run_session(topic, session_id=session_id, max_rounds=args.max_rounds, timeout_seconds=args.timeout_seconds)
+    try:
+        summary = run_session(topic, session_id=session_id, max_rounds=args.max_rounds, timeout_seconds=args.timeout_seconds)
+    except Exception as exc:
+        print(f"Demo 4 failed: {exc}", file=sys.stderr)
+        return 1
     print(summary["final_review"])
     print("\nRun summary:")
     print(json.dumps({k: v for k, v in summary.items() if k != "final_review"}, ensure_ascii=False, indent=2))

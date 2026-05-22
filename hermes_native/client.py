@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -17,12 +18,16 @@ class DemoConfig:
     model: str
     temperature: float
     max_tokens: int = 1200
+    request_timeout_seconds: int = 180
+    max_attempts: int = 4
 
     @classmethod
     def from_env(cls, *, temperature: float, max_tokens: int = 1200) -> "DemoConfig":
         base_url = os.getenv("OPENAI_BASE_URL", "").strip()
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         model = os.getenv("OPENAI_MODEL", "").strip()
+        request_timeout_seconds = _get_int_env("OPENAI_HTTP_TIMEOUT_SECONDS", 180, minimum=30)
+        max_attempts = _get_int_env("OPENAI_HTTP_MAX_ATTEMPTS", 4, minimum=1)
         if base_url and api_key and model:
             return cls(
                 base_url=base_url.rstrip("/"),
@@ -30,6 +35,8 @@ class DemoConfig:
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                request_timeout_seconds=request_timeout_seconds,
+                max_attempts=max_attempts,
             )
 
         try:
@@ -52,6 +59,8 @@ class DemoConfig:
                     model=resolved_model,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    request_timeout_seconds=request_timeout_seconds,
+                    max_attempts=max_attempts,
                 )
         except Exception:
             pass
@@ -81,19 +90,27 @@ def create_chat_completion(config: DemoConfig, messages: list[dict]) -> tuple[st
         },
     )
     last_error: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(config.max_attempts):
         try:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with urllib.request.urlopen(request, timeout=config.request_timeout_seconds) as response:
                 raw = response.read().decode("utf-8")
             break
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"Chat completion failed: HTTP {exc.code} {body}") from exc
+        except (TimeoutError, socket.timeout) as exc:
+            last_error = exc
+            if attempt == config.max_attempts - 1:
+                raise RuntimeError(
+                    f"Chat completion timed out after {config.max_attempts} attempts "
+                    f"(timeout={config.request_timeout_seconds}s)."
+                ) from exc
+            time.sleep(min(8, 2**attempt))
         except urllib.error.URLError as exc:
             last_error = exc
-            if attempt == 2:
+            if attempt == config.max_attempts - 1:
                 raise RuntimeError(f"Chat completion failed: {exc}") from exc
-            time.sleep(1 + attempt)
+            time.sleep(min(8, 1 + attempt))
     else:
         raise RuntimeError(f"Chat completion failed: {last_error}")
 
@@ -101,3 +118,12 @@ def create_chat_completion(config: DemoConfig, messages: list[dict]) -> tuple[st
     choice = parsed["choices"][0]
     content = choice["message"].get("content") or ""
     return content, parsed
+
+
+def _get_int_env(name: str, default: int, *, minimum: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        value = default
+    return max(minimum, value)

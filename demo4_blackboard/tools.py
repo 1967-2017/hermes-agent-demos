@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 from typing import Any
 
 from .mcp_client import StdioMcpClient
+from .env import get_arxiv_user_agent, get_http_min_interval_seconds
 
 TOOL_SCHEMAS = [
     {
@@ -50,6 +53,10 @@ class ArxivToolAdapter:
     def __init__(self, mcp: StdioMcpClient) -> None:
         self.mcp = mcp
         self.evidence: list[dict[str, Any]] = []
+        self.policy_interval_seconds = get_http_min_interval_seconds()
+        self.user_agent = get_arxiv_user_agent()
+        self._rate_lock = threading.Lock()
+        self._last_http_request_at: float | None = None
 
     def call(self, name: str, arguments: dict[str, Any]) -> str:
         if name == "search_arxiv":
@@ -62,16 +69,38 @@ class ArxivToolAdapter:
 
     def search_arxiv(self, args: dict[str, Any]) -> str:
         query = str(args.get("query") or "").strip()
+        wait_seconds = self._throttle_http_request()
         max_results = int(args.get("max_results") or 5)
         result = self.mcp.call_tool("search_papers", {"query": query, "max_results": max(1, min(max_results, 10))})
-        payload = {"ok": True, "tool": "search_arxiv", "query": query, "mcp_tool": "search_papers", "text": result.as_text(), "raw": result.raw}
+        payload = {
+            "ok": True,
+            "tool": "search_arxiv",
+            "query": query,
+            "mcp_tool": "search_papers",
+            "throttled_wait_seconds": wait_seconds,
+            "policy_interval_seconds": self.policy_interval_seconds,
+            "user_agent": self.user_agent,
+            "text": result.as_text(),
+            "raw": result.raw,
+        }
         self.evidence.append(payload)
         return json.dumps(payload, ensure_ascii=False)
 
     def fetch_pdf(self, args: dict[str, Any]) -> str:
         paper_id = str(args.get("paper_id") or "").strip()
+        wait_seconds = self._throttle_http_request()
         result = self.mcp.call_tool("download_paper", {"paper_id": paper_id})
-        payload = {"ok": True, "tool": "fetch_pdf", "paper_id": paper_id, "mcp_tool": "download_paper", "text": result.as_text(), "raw": result.raw}
+        payload = {
+            "ok": True,
+            "tool": "fetch_pdf",
+            "paper_id": paper_id,
+            "mcp_tool": "download_paper",
+            "throttled_wait_seconds": wait_seconds,
+            "policy_interval_seconds": self.policy_interval_seconds,
+            "user_agent": self.user_agent,
+            "text": result.as_text(),
+            "raw": result.raw,
+        }
         self.evidence.append(payload)
         return json.dumps(payload, ensure_ascii=False)
 
@@ -90,6 +119,20 @@ class ArxivToolAdapter:
         }
         self.evidence.append(payload)
         return json.dumps(payload, ensure_ascii=False)
+
+    def _throttle_http_request(self) -> float:
+        with self._rate_lock:
+            if self.policy_interval_seconds <= 0:
+                self._last_http_request_at = time.monotonic()
+                return 0.0
+            wait_seconds = 0.0
+            if self._last_http_request_at is not None:
+                elapsed = time.monotonic() - self._last_http_request_at
+                wait_seconds = max(0.0, self.policy_interval_seconds - elapsed)
+            if wait_seconds > 0:
+                time.sleep(wait_seconds)
+            self._last_http_request_at = time.monotonic()
+            return round(wait_seconds, 3)
 
 
 def extract_section_summary(text: str) -> dict[str, str]:

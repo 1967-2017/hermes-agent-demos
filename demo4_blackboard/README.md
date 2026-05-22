@@ -7,6 +7,7 @@ Demo 4 builds a Hermes-native multi-agent workflow with three agents:
 - Writer produces an approximately 2000 Chinese character mini-review from the blackboard.
 
 Agents do not call each other directly. Every handoff is appended to `demo4_blackboard/data/runs/<session>/blackboard.jsonl` with at least `from`, `to`, `round`, `type`, and `content`.
+The live viewer shows both agent collaboration messages and tool call traces by default. Setting `DEMO4_ENABLE_VIEWER_LOGS=0` only disables the extra viewer event logs (`agent_status` / `tool_call` / `tool_result`); the viewer still reconstructs collaboration state and tool activity from core handoff records and `research_notes.tool_trace`.
 
 ## Environment
 
@@ -30,6 +31,9 @@ Demo 4 launches the arXiv MCP server over stdio. Defaults:
 DEMO4_MCP_COMMAND=uvx
 DEMO4_MCP_ARGS=arxiv-mcp-server
 DEMO4_ARXIV_STORAGE_PATH=demo4_blackboard/data/arxiv
+DEMO4_ARXIV_USER_AGENT=hermes-agent-demos/0.1 (contact: 1654104930@qq.com)
+DEMO4_HTTP_MIN_INTERVAL_SECONDS=3.5
+DEMO4_ENFORCE_ARXIV_POLICY=1
 DEMO4_UV_CACHE_DIR=demo4_blackboard/data/uv-cache
 DEMO4_UV_TOOL_DIR=demo4_blackboard/data/uv-tools
 DEMO4_MCP_TIMEOUT_SECONDS=300
@@ -38,6 +42,7 @@ DEMO4_MCP_TIMEOUT_SECONDS=300
 If `uvx` is not available, install the arXiv MCP server in `hermes-demos` and set `DEMO4_MCP_COMMAND` / `DEMO4_MCP_ARGS` to the matching command.
 `DEMO4_UV_CACHE_DIR` and `DEMO4_UV_TOOL_DIR` default to repo-local writable directories to avoid permission issues in user-level uv locations.
 The first `uvx arxiv-mcp-server` run may take a few minutes while dependencies download; increase `DEMO4_MCP_TIMEOUT_SECONDS` if needed.
+Strict mode is enabled by default. Demo 4 always sets a contactable arXiv `User-Agent` and clamps the minimum outbound arXiv request interval to at least 3.0 seconds. The default is 3.5 seconds per HTTP request to stay above the arXiv floor.
 
 ## Run
 
