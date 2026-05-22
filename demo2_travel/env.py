@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def load_repo_env() -> None:
-    """Load simple KEY=VALUE entries from the repo-local .env if present."""
+    """Load simple KEY=VALUE entries from the repo-local .env with repo values taking precedence."""
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if not env_path.exists():
         return
@@ -18,6 +18,6 @@ def load_repo_env() -> None:
         name, value = stripped.split("=", 1)
         name = name.strip()
         value = value.strip().strip('"').strip("'")
-        if name and name not in os.environ:
+        if name:
             os.environ[name] = value
 

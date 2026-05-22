@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo 4 Blackboard Live Viewer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #677083;
+      --line: #e4e7ec;
+      --blue: #2563eb;
+      --green: #16803c;
+      --red: #c7362f;
+      --gray: #758195;
+      --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1160px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 { font-size: 28px; letter-spacing: -0.03em; }
+
+    .subhead {
+      margin-top: 6px;
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: var(--card);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--green);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .card, .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .agent-card { padding: 18px; }
+
+    .agent-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .agent-name {
+      font-size: 18px;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .status {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: #eef2f7;
+      color: var(--gray);
+    }
+
+    .status.running { background: #e8f0ff; color: var(--blue); }
+    .status.done { background: #e8f8ee; color: var(--green); }
+    .status.error { background: #ffeceb; color: var(--red); }
+
+    .action-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .action {
+      min-height: 46px;
+      color: #263248;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.35fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel { overflow: hidden; }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-header h2 { font-size: 18px; }
+
+    .count { color: var(--muted); font-size: 13px; }
+
+    .timeline {
+      max-height: 620px;
+      overflow: auto;
+      padding: 8px 18px 18px;
+    }
+
+    .event {
+      position: relative;
+      padding: 14px 0 14px 22px;
+      border-left: 2px solid var(--line);
+    }
+
+    .event::before {
+      content: "";
+      position: absolute;
+      left: -6px;
+      top: 20px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .event.result::before { background: var(--green); }
+
+    .event-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .event-meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .event-summary { color: #2e3b52; }
+
+    .result-body {
+      padding: 18px;
+    }
+
+    .review {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: inherit;
+      color: #202b3d;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 22px 0;
+      text-align: center;
+    }
+
+    .error {
+      color: var(--red);
+      margin-top: 8px;
+    }
+
+    @media (max-width: 860px) {
+      header, .layout { display: block; }
+      .grid { grid-template-columns: 1fr; }
+      .pill { margin-top: 16px; }
+      .panel { margin-top: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Demo 4 Blackboard Live Viewer</h1>
+        <p class="subhead" id="topic">正在读取黑板状态...</p>
+        <p class="error" id="error" hidden></p>
+      </div>
+      <div class="pill"><span class="dot"></span><span id="session">session: -</span></div>
+    </header>
+
+    <section class="grid" id="agents"></section>
+
+    <section class="layout">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>工具调用时间线</h2>
+          <span class="count" id="timeline-count">0 events</span>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>最终结果</h2>
+          <span class="count" id="result-status">等待生成</span>
+        </div>
+        <div class="result-body">
+          <pre class="review" id="final-result">最终 review 会在 writer 完成后显示在这里。</pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id') || '';
+    const agentsEl = document.getElementById('agents');
+    const timelineEl = document.getElementById('timeline');
+    const topicEl = document.getElementById('topic');
+    const errorEl = document.getElementById('error');
+    const sessionEl = document.getElementById('session');
+    const countEl = document.getElementById('timeline-count');
+    const finalEl = document.getElementById('final-result');
+    const resultStatusEl = document.getElementById('result-status');
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function statusText(status) {
+      return ({ waiting: 'waiting', running: 'running', done: 'done', error: 'error' })[status] || status || 'waiting';
+    }
+
+    function formatTime(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
+    }
+
+    function renderAgents(agents) {
+      agentsEl.innerHTML = agents.map(agent => `
+        <article class="card agent-card">
+          <div class="agent-top">
+            <h3 class="agent-name">${escapeHtml(agent.name)}</h3>
+            <span class="status ${escapeHtml(agent.status)}">${escapeHtml(statusText(agent.status))}</span>
+          </div>
+          <div class="action-label">最近动作 · Round ${escapeHtml(agent.round ?? 0)}</div>
+          <p class="action">${escapeHtml(agent.last_action || 'Waiting')}</p>
+        </article>
+      `).join('');
+    }
+
+    function renderTimeline(items) {
+      countEl.textContent = `${items.length} events`;
+      if (!items.length) {
+        timelineEl.innerHTML = '<div class="empty">暂无工具调用事件。</div>';
+        return;
+      }
+      timelineEl.innerHTML = items.map(item => `
+        <div class="event ${item.kind === 'tool_result' ? 'result' : 'call'}">
+          <div class="event-title">
+            <span>${escapeHtml(item.tool)}</span>
+            <span>${escapeHtml(formatTime(item.ts))}</span>
+          </div>
+          <div class="event-meta">${escapeHtml(item.agent)} · ${escapeHtml(item.kind)} · round ${escapeHtml(item.round)}</div>
+          <div class="event-summary">${escapeHtml(item.summary)}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderFinal(result) {
+      if (result && result.ready) {
+        resultStatusEl.textContent = result.consensus ? '已达共识' : '未达共识';
+        finalEl.textContent = result.text || '最终结果为空。';
+        return;
+      }
+      resultStatusEl.textContent = '等待生成';
+      finalEl.textContent = '最终 review 会在 writer 完成后显示在这里。';
+    }
+
+    async function loadState() {
+      const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+      const response = await fetch(`/api/state${query}`, { cache: 'no-store' });
+      const state = await response.json();
+      sessionEl.textContent = `session: ${state.session_id || '-'}`;
+      topicEl.textContent = state.topic ? `Topic: ${state.topic}` : '正在读取黑板状态...';
+      errorEl.hidden = !state.error;
+      errorEl.textContent = state.error || '';
+      renderAgents(state.agents || []);
+      renderTimeline(state.timeline || []);
+      renderFinal(state.final_result || {});
+    }
+
+    loadState().catch(error => {
+      errorEl.hidden = false;
+      errorEl.textContent = error.message;
+    });
+    setInterval(() => loadState().catch(() => {}), 1000);
+  </script>
+</body>
+</html>

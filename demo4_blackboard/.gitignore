@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+/data/arxiv/
+/data/runs/
+/data/uv-cache/
+/data/uv-tools/
+

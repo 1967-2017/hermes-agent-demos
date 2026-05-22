@@ -10,6 +10,7 @@ from datetime import datetime, UTC
 from pathlib import Path
 
 from .client import Demo1Config, create_chat_completion
+from demo2_travel.env import load_repo_env
 from .parser import extract_tool_calls
 from .prompts import build_system_prompt
 from .scenarios import SCENARIOS
@@ -148,6 +149,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_repo_env()
     args = parse_args(argv)
     if args.manual_input:
         inputs = [args.manual_input]
