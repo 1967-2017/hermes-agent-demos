@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any
 
 from hermes_native.chatml import build_tool_result, make_message
@@ -14,6 +15,32 @@ from .blackboard import Blackboard
 from .env import get_viewer_logs_enabled
 from .prompts import critic_system_prompt, researcher_system_prompt, writer_system_prompt
 from .tools import ArxivToolAdapter
+
+
+@dataclass
+class _SyntheticToolCall:
+    name: str
+    arguments: dict[str, Any]
+
+
+def _has_tool_results(trace_steps: list[dict[str, Any]]) -> bool:
+    return any(step.get("tool_results") for step in trace_steps)
+
+
+def _has_tool_call(trace_steps: list[dict[str, Any]], tool_name: str) -> bool:
+    return any(
+        call.get("name") == tool_name
+        for step in trace_steps
+        for call in step.get("tool_calls", [])
+    )
+
+
+def _mandatory_search_message(topic: str) -> str:
+    return (
+        "You cannot submit research_notes before using tools. "
+        "You must call search_arxiv first and must output exactly one valid <tool_call> block with no notes. "
+        f"Use a focused query for this topic: {topic}."
+    )
 
 
 def _append_viewer(blackboard: Blackboard, sender: str, round_number: int, message_type: str, content: dict[str, Any]) -> None:
@@ -46,29 +73,63 @@ def run_researcher(
     trace_steps: list[dict[str, Any]] = []
     repeated: dict[str, int] = {}
     final_text = ""
+    missing_tool_retries = 0
     for step_index in range(max_steps):
         text, raw = create_chat_completion(config, messages)
         messages.append(make_message("assistant", text))
         step: dict[str, Any] = {"assistant_text": text, "tool_calls": [], "tool_results": [], "raw_response": raw}
         tool_calls = extract_tool_calls(text)
         if not tool_calls:
-            final_text = text.strip()
-            trace_steps.append(step)
-            break
+            if not _has_tool_call(trace_steps, "search_arxiv"):
+                missing_tool_retries += 1
+                if missing_tool_retries <= 1:
+                    step["missing_required_search"] = True
+                    messages.append(make_message("user", _mandatory_search_message(topic)))
+                    trace_steps.append(step)
+                    continue
+                tool_calls = [
+                    _SyntheticToolCall(
+                        "search_arxiv",
+                        {"query": topic, "max_results": 6},
+                    )
+                ]
+                step["synthetic_tool_call"] = True
+                step["synthetic_reason"] = "model skipped mandatory first search_arxiv call"
+            elif not _has_tool_results(trace_steps):
+                step["missing_required_tool_result"] = True
+                messages.append(make_message("user", _mandatory_search_message(topic)))
+                trace_steps.append(step)
+                continue
+            else:
+                final_text = text.strip()
+                trace_steps.append(step)
+                break
         for tool_call in tool_calls:
             repeat_key = f"{tool_call.name}:{json.dumps(tool_call.arguments, sort_keys=True, ensure_ascii=False)}"
             repeated[repeat_key] = repeated.get(repeat_key, 0) + 1
             if repeated[repeat_key] > 2:
                 raise RuntimeError(f"Repeated identical researcher tool call: {repeat_key}")
-            _append_viewer(
-                blackboard,
-                "researcher",
-                round_number,
-                "tool_call",
-                {"agent": "researcher", "tool": tool_call.name, "arguments": tool_call.arguments, "step": step_index + 1},
-            )
-            result = tools.call(tool_call.name, tool_call.arguments)
-            result_payload = json.loads(result)
+            call_content = {
+                "agent": "researcher",
+                "tool": tool_call.name,
+                "arguments": tool_call.arguments,
+                "step": step_index + 1,
+            }
+            if step.get("synthetic_tool_call"):
+                call_content["synthetic"] = True
+                call_content["reason"] = step.get("synthetic_reason", "")
+            _append_viewer(blackboard, "researcher", round_number, "tool_call", call_content)
+            try:
+                result = tools.call(tool_call.name, tool_call.arguments)
+                result_payload = json.loads(result)
+            except Exception as exc:
+                result_payload = {
+                    "ok": False,
+                    "tool": tool_call.name,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+                result = json.dumps(result_payload, ensure_ascii=False)
             _append_viewer(
                 blackboard,
                 "researcher",
@@ -78,6 +139,7 @@ def run_researcher(
                     "agent": "researcher",
                     "tool": tool_call.name,
                     "summary": _summarize_tool_result(result_payload),
+                    "ok": result_payload.get("ok"),
                     "step": step_index + 1,
                 },
             )
@@ -89,19 +151,25 @@ def run_researcher(
         raise RuntimeError("Researcher exceeded maximum tool loop steps")
 
     notes = _parse_json_object(final_text, fallback_key="notes")
+    evidence_count = sum(
+        1
+        for step in trace_steps
+        for result in step.get("tool_results", [])
+        if result.get("ok") is not False
+    )
     record = blackboard.append(
         "researcher",
         "critic",
         round_number,
         "research_notes",
-        {"notes": notes, "tool_trace": trace_steps, "evidence_count": len(tools.evidence)},
+        {"notes": notes, "tool_trace": trace_steps, "evidence_count": evidence_count},
     )
     _append_viewer(
         blackboard,
         "researcher",
         round_number,
         "agent_status",
-        {"agent": "researcher", "status": "done", "action": f"Submitted research notes with {len(tools.evidence)} evidence items"},
+        {"agent": "researcher", "status": "done", "action": f"Submitted research notes with {evidence_count} evidence items"},
     )
     return record
 

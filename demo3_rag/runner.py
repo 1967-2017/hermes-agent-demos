@@ -43,6 +43,23 @@ def _citation_limit_ok(text: str) -> bool:
     return all(len(CITATION_RE.findall(sentence)) <= 2 for sentence in sentences if sentence.strip())
 
 
+def _has_retrieved(trace: dict[str, Any]) -> bool:
+    return any(
+        call.get("name") == "retrieve_docs"
+        for step in trace.get("steps", [])
+        for call in step.get("tool_calls", [])
+    )
+
+
+def _missing_retrieve_message() -> str:
+    return (
+        "你还没有调用 retrieve_docs，不能直接回答。"
+        "Demo 3 是 RAG 问答，任何菜谱事实、原料、用量、步骤、时间、工具、对比、缺失或歧义问题都必须先调用 retrieve_docs。"
+        "即使你认为答案不存在，也必须先检索，不能先说未找到。"
+        "请只输出一个合法的 <tool_call>{\"name\":\"retrieve_docs\",\"arguments\":{\"query\":\"...\",\"intent\":\"answer|compare|clarify|verify_absence\"}}</tool_call>，不要输出自然语言答案。"
+    )
+
+
 def _rewrite_citation_format(config: DemoConfig, messages: list[dict[str, str]], answer: str) -> tuple[str, dict]:
     rewrite_messages = deepcopy(messages)
     rewrite_messages.append(
@@ -74,7 +91,7 @@ def run_session(
     scenario_id: str | None = None,
     tool_temperature: float = 0.3,
     answer_temperature: float = 0.6,
-    max_steps: int = 4,
+    max_steps: int = 6,
     event_callback: EventCallback | None = None,
 ) -> dict[str, Any]:
     load_repo_env()
@@ -173,6 +190,18 @@ def run_session(
                     },
                 )
                 correction_message = make_message("user", _tool_call_format_error_message(exc))
+                messages.append(correction_message)
+                trace["messages"].append(deepcopy(correction_message))
+                trace["steps"].append(step)
+                continue
+            if not _has_retrieved(trace):
+                step["missing_required_retrieve"] = True
+                _emit(
+                    event_callback,
+                    "missing_required_retrieve",
+                    {"step_index": step_index, "assistant_text": assistant_text},
+                )
+                correction_message = make_message("user", _missing_retrieve_message())
                 messages.append(correction_message)
                 trace["messages"].append(deepcopy(correction_message))
                 trace["steps"].append(step)

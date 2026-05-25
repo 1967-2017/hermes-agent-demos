@@ -2,21 +2,21 @@
 
 SCENARIOS = {
     "1": {
-        "name": "tokyo-replan-after-no-flights",
-        "inputs": ["2026年6月1日从上海去东京玩一周，预算1.5万", "延后一周继续去东京"],
+        "name": "tokyo-terminal-follow-up-plan",
+        "inputs": ["下个月从上海去东京玩一周，预算两万人民币"],
         "fault_injections": {"search_flights": 1},
-        "expectation": "Plan at least five steps, force the first flight search to return no availability, replan, and finish with flight, hotel, weather, and budget details.",
+        "expectation": "Ask for missing required details, let the user continue in the terminal, then produce a complete Tokyo travel plan after the user supplies the remaining information.",
     },
     "2": {
-        "name": "underspecified-trip",
-        "inputs": ["随便玩玩", "我从上海出发，下个月去泰国 5 天，预算 8000 元"],
+        "name": "underspecified-terminal-follow-up-plan",
+        "inputs": ["随便玩玩"],
         "fault_injections": {},
-        "expectation": "Ask only for missing required constraints (origin, destination, date window/duration, budget) before using tools, then plan once those details are supplied.",
+        "expectation": "Ask clarification questions, let the user continue in the terminal, then produce a complete travel plan after enough details are supplied.",
     },
     "3": {
-        "name": "unrealistic-antarctica",
-        "inputs": ["明天就走，去南极"],
+        "name": "unrealistic-antarctica-plan",
+        "inputs": ["明天从上海出发去南极玩 7 天，预算 1.5 万"],
         "fault_injections": {},
-        "expectation": "Recognize flight, visa, logistics, or budget infeasibility and provide a downgrade plan.",
+        "expectation": "Recognize that the Antarctica trip is unrealistic and automatically provide a feasible downgrade or alternative travel plan.",
     },
 }

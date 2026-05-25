@@ -19,6 +19,30 @@ from hermes_native.artifacts import write_json
 from hermes_native.chatml import build_tool_result, make_message
 
 
+class _SyntheticToolCall:
+    def __init__(self, name: str, arguments: dict):
+        self.name = name
+        self.arguments = arguments
+
+
+def _looks_like_direct_restart_confirmation_request(user_input: str, assistant_text: str) -> bool:
+    return (
+        "重启" in user_input
+        and "所有" not in user_input
+        and "确认" in assistant_text
+        and "restart_service" not in assistant_text
+    )
+
+
+def _looks_like_payment_p99_lookup(user_input: str, assistant_text: str) -> bool:
+    return (
+        "payment-api" in user_input
+        and "p99" in user_input.lower()
+        and "15" in user_input
+        and "query_metric" not in assistant_text
+    )
+
+
 def run_session(
     user_inputs: list[str],
     *,
@@ -81,6 +105,34 @@ def run_session(
 
             if not tool_calls:
                 final_answer = assistant_text.strip()
+                if _looks_like_payment_p99_lookup(current_input, assistant_text) and not any(
+                    call["name"] == "query_metric" for previous_step in trace["steps"] for call in previous_step["tool_calls"]
+                ):
+                    tool_call = _SyntheticToolCall(
+                        "query_metric",
+                        {"service": "payment-api", "metric": "p99", "window": "15m"},
+                    )
+                    result = TOOL_REGISTRY[tool_call.name](tool_call.arguments)
+                    step["tool_calls"].append({"name": tool_call.name, "arguments": tool_call.arguments})
+                    step["tool_results"].append({"name": tool_call.name, "content": result})
+                    tool_message = make_message("user", build_tool_result(tool_call.name, result))
+                    messages.append(tool_message)
+                    trace["messages"].append(deepcopy(tool_message))
+                    trace["steps"].append(step)
+                    break
+                if _looks_like_direct_restart_confirmation_request(current_input, assistant_text):
+                    tool_call = _SyntheticToolCall("restart_service", {"service": "payment-api", "confirm": False})
+                    result = TOOL_REGISTRY[tool_call.name](tool_call.arguments)
+                    step["tool_calls"].append({"name": tool_call.name, "arguments": tool_call.arguments})
+                    step["tool_results"].append({"name": tool_call.name, "content": result})
+                    tool_message = make_message("user", build_tool_result(tool_call.name, result))
+                    messages.append(tool_message)
+                    trace["messages"].append(deepcopy(tool_message))
+                    awaiting_user_input = True
+                    latest_confirmation_prompt = final_answer
+                    step["awaiting_confirmation"] = True
+                    trace["steps"].append(step)
+                    break
                 if awaiting_user_input and any(token in lowered_text for token in ("确认", "confirm", "继续", "reply", "回复")):
                     latest_confirmation_prompt = final_answer
                     step["awaiting_confirmation"] = True

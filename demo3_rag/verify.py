@@ -64,7 +64,11 @@ def evaluate_trace(scenario: dict[str, Any], trace: dict[str, Any]) -> tuple[boo
     expected_behavior = scenario["expected_behavior"]
 
     if not calls:
-        return False, "model did not call retrieve_docs"
+        if citations:
+            return False, "model fabricated citations without retrieve_docs"
+        if "未找到" in answer:
+            return False, "model claimed 未找到 without retrieve_docs"
+        return False, "model answered directly without retrieve_docs"
     if any(call.get("name") != "retrieve_docs" for call in calls):
         return False, "unexpected tool call"
     if not _max_two_citations_per_sentence(answer):
@@ -136,7 +140,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--scenario", choices=["all", *sorted(SCENARIOS)], default="all")
     parser.add_argument("--tool-temperature", type=float, default=0.3)
     parser.add_argument("--answer-temperature", type=float, default=0.6)
-    parser.add_argument("--max-steps", type=int, default=4)
+    parser.add_argument("--max-steps", type=int, default=6)
     parser.add_argument("--hardcoding-only", action="store_true")
     return parser.parse_args(argv)
 

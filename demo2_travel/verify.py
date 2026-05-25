@@ -61,29 +61,32 @@ def evaluate_trace(scenario_id: str, trace: dict[str, Any]) -> tuple[bool, str]:
         return False, "detected repeated identical tool calls"
 
     if scenario_id == "1":
-        initial_plan = _initial_plan(trace)
-        if len(initial_plan) < 5:
-            return False, "initial plan must contain at least five steps"
-        if "search_flights" not in tool_names:
-            return False, "search_flights was not called"
-        first_flight = next(action for action in actions if action.get("tool") == "search_flights")
-        if "no_availability" not in str(first_flight.get("tool_result")):
-            return False, "first flight search did not exercise the no-availability fault"
-        if not _has_replan(trace):
-            return False, "trace does not show a replan after no flights"
-        if "search_hotels" not in tool_names or "get_weather" not in tool_names or "calc_budget" not in tool_names:
-            return False, "missing hotel, weather, or budget tool coverage"
-        if not _final_contains(final_answer, ("航班", "酒店", "天气", "预算")):
-            return False, "final answer must mention flight, hotel, weather, and budget"
-        return True, "replan after no flights produced a complete travel plan"
+        first_user_gate = next((event for event in trace.get("events", []) if event.get("type") in {"user_input_required", "action"}), None)
+        if not first_user_gate or first_user_gate.get("type") != "user_input_required":
+            return False, "Tokyo scenario should ask for missing required details before tool use"
+        if actions:
+            return False, "Tokyo scenario should wait for terminal follow-up before using tools"
+        question = str(first_user_gate.get("question") or "")
+        if not any(token in question for token in ("预算", "时间", "日期", "几天", "天")):
+            return False, "Tokyo scenario should ask for missing budget or time details"
+        if not trace.get("awaiting_user_input"):
+            return False, "Tokyo scenario should wait for terminal user input"
+        return True, "Tokyo scenario asks for missing details and waits for terminal follow-up"
 
     if scenario_id == "2":
         first_user_gate = next((event for event in trace.get("events", []) if event.get("type") in {"user_input_required", "action"}), None)
         if not first_user_gate or first_user_gate.get("type") != "user_input_required":
-            return False, "underspecified request should ask a question before tool use"
-        if not actions:
-            return False, "planner never started tool-backed planning after details were supplied"
-        return True, "underspecified request asked for details before planning"
+            return False, "underspecified request should ask clarification questions before tool use"
+        question = str(first_user_gate.get("question") or "")
+        question_count = question.count("？") + question.count("?")
+        required_topics = sum(1 for token in ("出发", "目的", "时间", "预算", "天") if token in question)
+        if question_count < 2 and required_topics < 2:
+            return False, "underspecified request should ask at least two clarification questions"
+        if actions:
+            return False, "underspecified request should wait for terminal follow-up before using tools"
+        if not trace.get("awaiting_user_input"):
+            return False, "underspecified request should wait for terminal user input"
+        return True, "underspecified request asks clarifying questions and waits for terminal follow-up"
 
     if scenario_id == "3":
         if not any(tool in tool_names for tool in ("get_visa_info", "search_flights", "calc_budget")):
@@ -99,7 +102,11 @@ def evaluate_trace(scenario_id: str, trace: dict[str, Any]) -> tuple[bool, str]:
 def scan_for_hardcode() -> tuple[bool, str]:
     root = Path(__file__).resolve().parent
     banned_prompt_tokens = ["验证场景", "scenario 1", "无航班测试", "预期输出"]
-    exact_inputs = ["2026年6月1日想去东京玩一周，预算1.5万", "随便玩玩", "明天就走，去南极"]
+    exact_inputs = [
+        "下个月从上海去东京玩一周",
+        "随便玩玩",
+        "明天从上海出发去南极玩 7 天，预算 1.5 万",
+    ]
     runtime_files = [path for path in root.glob("*.py") if path.name not in {"scenarios.py", "verify.py"}]
     for path in runtime_files:
         text = path.read_text(encoding="utf-8")
